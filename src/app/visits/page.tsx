@@ -192,7 +192,7 @@ export default function VisitsPage() {
       </Card>
 
       {/* Schedule Visit Dialog */}
-      <Dialog open={showSchedule} onClose={() => setShowSchedule(false)}>
+      <Dialog open={showSchedule} onOpenChange={setShowSchedule}>
         <DialogHeader><DialogTitle>Schedule Visit</DialogTitle></DialogHeader>
         <form onSubmit={scheduleVisit} className="space-y-4">
           <Select name="leadId" placeholder="Select Lead" options={leads.filter((l) => !["booked", "lost"].includes(l.status)).map((l) => ({ value: l.id, label: l.name }))} />
@@ -207,7 +207,7 @@ export default function VisitsPage() {
       </Dialog>
 
       {/* Record Outcome Dialog */}
-      <Dialog open={!!showOutcome} onClose={() => setShowOutcome(null)}>
+      <Dialog open={!!showOutcome} onOpenChange={(open) => { if (!open) setShowOutcome(null); }}>
         <DialogHeader><DialogTitle>Record Visit Outcome</DialogTitle></DialogHeader>
         <form onSubmit={recordOutcome} className="space-y-4">
           <Select name="outcome" placeholder="Select Outcome" options={[

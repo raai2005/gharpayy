@@ -177,7 +177,7 @@ export default function LeadsPage() {
       </Card>
 
       {/* Add Lead Dialog */}
-      <Dialog open={showAddDialog} onClose={() => setShowAddDialog(false)}>
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogHeader><DialogTitle>Add New Lead</DialogTitle></DialogHeader>
         <form onSubmit={handleAddLead} className="space-y-4">
           <Input name="name" placeholder="Full Name" required />
