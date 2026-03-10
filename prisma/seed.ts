@@ -1,11 +1,10 @@
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { PrismaNeon } from "@prisma/adapter-neon";
-import { neonConfig, Pool } from "@neondatabase/serverless";
 
-neonConfig.useSecureWebSocket = true;
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const prisma = new PrismaClient({ adapter: new PrismaNeon(pool) });
+const prisma = new PrismaClient({
+  adapter: new PrismaNeon({ connectionString: process.env.DATABASE_URL! }),
+});
 
 async function main() {
   // Create Agents
