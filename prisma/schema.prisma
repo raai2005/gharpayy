@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Agent {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  phone       String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  leads       Lead[]
+  visits      Visit[]
+  activities  Activity[]
+}
+
+model Lead {
+  id              String   @id @default(cuid())
+  name            String
+  phone           String
+  email           String?
+  source          String
+  status          String   @default("new_lead")
+  score           Int      @default(15)
+  budget          String?
+  location        String?
+  notes           String?
+  agentId         String?
+  agent           Agent?   @relation(fields: [agentId], references: [id])
+  firstResponseAt DateTime?
+  lastActivityAt  DateTime?
+  lostReason      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  visits          Visit[]
+  activities      Activity[]
+  followUps       FollowUp[]
+}
+
+model Property {
+  id          String   @id @default(cuid())
+  name        String
+  location    String
+  price       Int
+  type        String   @default("PG")
+  amenities   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  visits      Visit[]
+}
+
+model Visit {
+  id          String    @id @default(cuid())
+  leadId      String
+  lead        Lead      @relation(fields: [leadId], references: [id])
+  propertyId  String
+  property    Property  @relation(fields: [propertyId], references: [id])
+  agentId     String
+  agent       Agent     @relation(fields: [agentId], references: [id])
+  scheduledAt DateTime
+  confirmedAt DateTime?
+  outcome     String?
+  notes       String?
+  status      String    @default("scheduled")
+  createdAt   DateTime  @default(now())
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id])
+  agentId   String?
+  agent     Agent?   @relation(fields: [agentId], references: [id])
+  type      String
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model FollowUp {
+  id          String    @id @default(cuid())
+  leadId      String
+  lead        Lead      @relation(fields: [leadId], references: [id])
+  type        String
+  dueAt       DateTime
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
