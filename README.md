@@ -63,45 +63,211 @@ Gharpayy CRM is a purpose-built Lead Management System that replaces the spreads
 
 ## Architecture
 
+### System Data Flow Diagram (DFD)
+
+```mermaid
+flowchart TB
+    subgraph External["External Sources"]
+        WA[("WhatsApp\nBusiness API")]
+        ZAP[("Zapier /\nGoogle Forms")]
+        WEB[("Website /\nLanding Page")]
+        PHONE[("Phone Calls")]
+        IG[("Instagram /\nFacebook Ads")]
+    end
+
+    subgraph Webhook["Webhook Layer"]
+        WH["POST /api/webhook/form\n─────────────────\n• Field Normalization\n• Phone Dedup (24h)\n• Zod Validation"]
+    end
+
+    subgraph Backend["Next.js API Routes"]
+        LEADS["/api/leads\nCRUD + Auto-Assign"]
+        LEAD_ID["/api/leads/[id]\nUpdate + Score Recalc"]
+        DASH["/api/dashboard\nKPI Aggregation"]
+        VISITS["/api/visits\nSchedule + Outcome"]
+        AGENTS["/api/agents"]
+        PROPS["/api/properties"]
+        FOLLOW["/api/followups"]
+    end
+
+    subgraph Logic["Business Logic Engine"]
+        RR["Round-Robin\nAssignment"]
+        SCORE["Lead Scoring\n15 → 35 → 50 → 70 → 85 → 100"]
+        SLA["SLA Tracker\n5-min Threshold"]
+        FU["Auto Follow-up\nDay 1 / Day 3"]
+        DEDUP["Deduplication\n24h Window"]
+    end
+
+    subgraph Frontend["Next.js Frontend (React 19)"]
+        DASHBOARD["/ Dashboard\n6 KPIs • Charts • Alerts"]
+        LEADPAGE["/leads\nTable • Search • Filter"]
+        DETAIL["/leads/[id]\nPipeline Stepper • Timeline"]
+        KANBAN["/pipeline\nKanban Drag & Drop"]
+        VISITPAGE["/visits\nSchedule • Confirm • Outcome"]
+        ANALYTICS["/analytics\nFunnel • ROI • Leaderboard"]
+    end
+
+    subgraph DB["Neon PostgreSQL (Serverless)"]
+        AGENT_T[("Agent")]
+        LEAD_T[("Lead")]
+        PROP_T[("Property")]
+        VISIT_T[("Visit")]
+        ACT_T[("Activity")]
+        FOLLOWUP_T[("FollowUp")]
+    end
+
+    WA & ZAP & WEB & PHONE & IG -->|"POST JSON"| WH
+    WH -->|"Normalized Lead"| DEDUP
+    DEDUP -->|"New Lead"| RR
+    RR -->|"Assigned Lead"| LEADS
+    LEADS & LEAD_ID & VISITS --> SCORE
+    SCORE --> SLA
+    SLA --> FU
+    LEADS & LEAD_ID & DASH & VISITS & AGENTS & PROPS & FOLLOW <-->|"Prisma 7\nNeon Adapter"| DB
+    Frontend <-->|"fetch() API Calls"| Backend
+
+    style External fill:#1e293b,stroke:#475569,color:#e2e8f0
+    style Webhook fill:#7c3aed,stroke:#a78bfa,color:#fff
+    style Backend fill:#0f766e,stroke:#2dd4bf,color:#fff
+    style Logic fill:#b45309,stroke:#fbbf24,color:#fff
+    style Frontend fill:#1d4ed8,stroke:#60a5fa,color:#fff
+    style DB fill:#166534,stroke:#4ade80,color:#fff
 ```
-┌─────────────────────────────────────────────────────┐
-│                    FRONTEND                         │
-│  Next.js App Router (React 19, TypeScript)          │
-│                                                     │
-│  /              → Dashboard (KPIs, Charts, Alerts)  │
-│  /leads         → Lead Table (Search, Filter, Add)  │
-│  /leads/[id]    → Lead Detail (Pipeline, Timeline)  │
-│  /pipeline      → Kanban Board (Drag & Drop)        │
-│  /visits        → Visit Scheduling & Outcomes       │
-│  /analytics     → Funnel, Source ROI, Leaderboard   │
-│  /bookings      → Booking Tracker                   │
-│  /conversations → WhatsApp Hub (placeholder)        │
-│  /historical    → CSV Import (placeholder)          │
-│  /settings      → Webhook Config, Rules             │
-└───────────────────────┬─────────────────────────────┘
-                        │ API Routes
-┌───────────────────────▼─────────────────────────────┐
-│                  BACKEND (API)                      │
-│                                                     │
-│  /api/leads          → CRUD + auto-assignment       │
-│  /api/leads/[id]     → Detail + score recalculation │
-│  /api/dashboard      → Aggregated KPIs & metrics    │
-│  /api/visits         → Schedule + confirm + outcome │
-│  /api/webhook/form   → External lead capture        │
-│  /api/agents         → Agent listing                │
-│  /api/properties     → Property listing             │
-│  /api/followups      → Overdue follow-up tracking   │
-└───────────────────────┬─────────────────────────────┘
-                        │ Prisma 7 + Neon Adapter
-┌───────────────────────▼─────────────────────────────┐
-│              DATABASE (Neon PostgreSQL)              │
-│                                                     │
-│  Agent ──┐                                          │
-│  Lead ───┤── Visit                                  │
-│  Property┘                                          │
-│  Lead ── Activity                                   │
-│  Lead ── FollowUp                                   │
-└─────────────────────────────────────────────────────┘
+
+### Lead Lifecycle Flowchart
+
+```mermaid
+flowchart LR
+    A["🆕 New Lead\nScore: 15"] -->|"Agent responds\n< 5 min SLA"| B["📞 Contacted\nScore: 35"]
+    B -->|"Budget, location\ncollected"| C["📋 Requirement\nCollected\nScore: 50"]
+    C -->|"Matching PGs\nshared"| D["🏠 Property\nSuggested\nScore: 70"]
+    D -->|"Visit date\nfixed"| E["📅 Visit\nScheduled\nScore: 85"]
+    E -->|"Visit\ncompleted"| F["✅ Visit\nCompleted\nScore: 100"]
+    F -->|"Tenant signs\nagreement"| G["🎉 BOOKED\nScore: 100"]
+    
+    B -->|"No response\n/ Not interested"| H["❌ LOST\nScore: 10"]
+    C --> H
+    D --> H
+    E --> H
+    F --> H
+
+    style A fill:#1e40af,stroke:#3b82f6,color:#fff
+    style B fill:#0e7490,stroke:#22d3ee,color:#fff
+    style C fill:#0f766e,stroke:#2dd4bf,color:#fff
+    style D fill:#4d7c0f,stroke:#a3e635,color:#fff
+    style E fill:#a16207,stroke:#facc15,color:#fff
+    style F fill:#15803d,stroke:#4ade80,color:#fff
+    style G fill:#16a34a,stroke:#86efac,color:#fff
+    style H fill:#dc2626,stroke:#f87171,color:#fff
+```
+
+### Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    Agent ||--o{ Lead : "assigned to"
+    Agent ||--o{ Visit : "conducts"
+    Agent ||--o{ Activity : "performs"
+    Lead ||--o{ Visit : "has"
+    Lead ||--o{ Activity : "generates"
+    Lead ||--o{ FollowUp : "scheduled for"
+    Property ||--o{ Visit : "visited at"
+
+    Agent {
+        string id PK
+        string name
+        string email UK
+        string phone
+        boolean isActive
+    }
+
+    Lead {
+        string id PK
+        string name
+        string phone
+        string email
+        string source
+        string status
+        int score
+        string budget
+        string location
+        string notes
+        string lostReason
+        datetime firstResponseAt
+        datetime lastActivityAt
+        string agentId FK
+    }
+
+    Property {
+        string id PK
+        string name
+        string location
+        string price
+        string type
+        string amenities
+        boolean isActive
+    }
+
+    Visit {
+        string id PK
+        datetime scheduledAt
+        datetime confirmedAt
+        string outcome
+        string notes
+        string status
+        string leadId FK
+        string propertyId FK
+        string agentId FK
+    }
+
+    Activity {
+        string id PK
+        string type
+        string content
+        datetime createdAt
+        string leadId FK
+        string agentId FK
+    }
+
+    FollowUp {
+        string id PK
+        string type
+        datetime dueAt
+        datetime completedAt
+        string leadId FK
+    }
+```
+
+### Webhook Data Flow
+
+```mermaid
+sequenceDiagram
+    participant Ext as External Source<br/>(Zapier / WhatsApp / Form)
+    participant WH as POST /api/webhook/form
+    participant Norm as Field Normalizer
+    participant Dedup as Deduplication Check
+    participant RR as Round-Robin Assigner
+    participant DB as Neon PostgreSQL
+    participant FU as Follow-up Scheduler
+
+    Ext->>WH: POST { full_name, mobile, ... }
+    WH->>Norm: Normalize field names
+    Norm-->>WH: { name, phone, source, ... }
+    WH->>WH: Zod validation
+    WH->>Dedup: Check phone in last 24h
+    
+    alt Duplicate found
+        Dedup-->>WH: Reject (409 Conflict)
+        WH-->>Ext: ❌ Duplicate lead
+    else New lead
+        Dedup-->>RR: No duplicate
+        RR->>DB: Find agent with fewest active leads
+        DB-->>RR: Agent selected
+        RR->>DB: Create Lead + Activity log
+        DB-->>RR: Lead created
+        RR->>FU: Schedule Day 1 follow-up
+        FU->>DB: Create FollowUp record
+        WH-->>Ext: ✅ Lead captured (201)
+    end
 ```
 
 ---
@@ -273,10 +439,5 @@ gharpayy-crm/
 
 ---
 
-## License
-
-MIT
-
----
 
 Built by **Roy** — Full-stack development, database design, cloud deployment, and business logic engineering.
